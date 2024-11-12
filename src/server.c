@@ -102,9 +102,54 @@ void LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, char * file
 
 void loadDatabase(char *path)
 {
- 
-}
+  struct dirent *entry; 
+  DIR *dir = opendir(path);
+  if (dir == NULL)
+  {
+    perror("Opendir ERROR");
+    exit(0);
+  }
+  while ((entry = readdir(dir)) != NULL)
+  {
+    if(strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0 && strcmp(entry->d_name, ".DS_Store") != 0)
+    {
+      sprintf(database[counter].file_name, "%s/%s", path, entry->d_name);
+      FILE *fp1;
+      unsigned char *buffer1 = NULL;
+      long fileLength1;
 
+      // Open the image files
+      fp1 = fopen(database[counter].file_name, "rb");
+      if (fp1 == NULL) {
+          perror("Error: Unable to open image files.\n");
+          exit(1);
+      }
+
+      // Get the length of file 1
+      fseek(fp1, 0, SEEK_END);
+      fileLength1 = ftell(fp1);
+      rewind(fp1);
+
+      // Allocate memory to store file contents
+      buffer1 = (unsigned char*)malloc(fileLength1 * sizeof(unsigned char));
+    
+      if (buffer1 == NULL) 
+      {
+        printf("Error: Memory allocation failed.\n");
+        fclose(fp1);
+        if (buffer1 != NULL) free(buffer1);
+      }
+
+      // Read file contents into memory buffers
+      fread(buffer1, sizeof(unsigned char), fileLength1, fp1);
+      database[counter].buffer = buffer1;
+      database[counter].file_size = fileLength1;
+      counter++;
+    }
+  }
+
+  closedir(dir);
+}
 
 void * dispatch(void *thread_id) 
 {   
