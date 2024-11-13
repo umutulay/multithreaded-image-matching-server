@@ -21,7 +21,15 @@ int queue_len = 0; //Global integer to indicate the length of the queue
   [multiple funct]  --> How will you track the p_thread's that you create for workers? TODO
   How will you store the database of images? What data structure will you use? Example: database_entry_t database[100]; 
 */
+pthread_t dispatcher_thread[MAX_THREADS];
+pthread_t worker_thread[MAX_THREADS];
+int dispatcher_ids[MAX_THREADS];
+int worker_ids[MAX_THREADS];
 
+pthread_mutex_t queue_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t queue_full = PTHREAD_COND_INITIALIZER;
+pthread_cond_t queue_empty = PTHREAD_COND_INITIALIZER;
 
 //TODO: Implement this function
 /**********************************************
@@ -162,12 +170,23 @@ void * dispatch(void *thread_id)
     *    Description:      Accept client connection
     *    Utility Function: int accept_connection(void)
     */
-
+    int client_fd = accept_connection();
+    if (client_fd < 0) {
+      perror("error accepting client connection");
+      exit(1);
+    }
     
     /* TODO: Intermediate Submission
     *    Description:      Get request from client
     *    Utility Function: char * get_request_server(int fd, size_t *filelength)
     */
+
+    char *file_path = get_request_server(client_fd, &file_size);
+    if (file_path == NULL) {
+        perror("Error getting request from client");
+        close(client_fd);
+        continue;
+    }
 
    /* TODO
     *    Description:      Add the request into the queue
@@ -201,6 +220,7 @@ void * worker(void *thread_id) {
   /* TODO : Intermediate Submission 
   *    Description:      Get the id as an input argument from arg, set it to ID
   */
+  int ID = *(int *) thread_id;
     
   while (1) {
     /* TODO
@@ -248,25 +268,38 @@ int main(int argc , char *argv[])
   /* TODO: Intermediate Submission
   *    Description:      Get the input args --> (1) port (2) database path (3) num_dispatcher (4) num_workers  (5) queue_length
   */
-  
+  port = atoi(argv[1]);
+  strncpy(path, argv[2], sizeof(path) - 1);
+  path[sizeof(path) - 1] = '\0';
+  num_dispatcher = atoi(argv[3]);
+  num_worker = atoi(argv[4]);
+  queue_len = atoi(argv[5]);
+
 
   /* TODO: Intermediate Submission
   *    Description:      Open log file
   *    Hint:             Use Global "File* logfile", use "server_log" as the name, what open flags do you want?
   */
-  
- 
+  logfile = fopen("server_log", "w");
+  if (logfile == NULL) {
+      perror("Failed to open log file");
+      return -1;
+  }
+
 
   /* TODO: Intermediate Submission
   *    Description:      Start the server
   *    Utility Function: void init(int port); //look in utils.h 
   */
 
+  init(port);
 
   /* TODO : Intermediate Submission
   *    Description:      Load the database
   *    Function: void loadDatabase(char *path); // prototype in server.h
   */
+
+  loadDatabase(path);
  
 
   /* TODO: Intermediate Submission
