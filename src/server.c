@@ -53,9 +53,10 @@ database_entry_t image_match(char *input_image, int size)
   const char *closest_file     = NULL;
 	int         closest_distance = 10;
   int closest_index = 0;
-  for(int i = 0; i < 0 /* replace with your database size*/; i++)
+  for(int i = 0; i < number_images; i++)
 	{
-		const char *current_file; /* TODO: assign to the buffer from the database struct*/
+    const char *current_file = database[i].buffer;
+		// const char *current_file; /* TODO: assign to the buffer from the database struct*/
 		int result = memcmp(input_image, current_file, size);
 		if(result == 0)
 		{
@@ -238,7 +239,7 @@ void * worker(void *thread_id) {
     request_t req = req_entries[queue_head];
     fd = req.file_descriptor;
     fileSize = req.file_size;
-    char *request_buffer = req.buffer;
+    char *mybuf = req.buffer;
 
     queue_head = (queue_head + 1) % queue_len;
     current_queue_size--;
@@ -246,7 +247,7 @@ void * worker(void *thread_id) {
     pthread_cond_signal(&queue_full);
     pthread_mutex_unlock(&queue_lock);
 
-    database_entry_t matched_image = image_match(request_buffer, fileSize);
+    database_entry_t matched_image = image_match(mybuf, fileSize);
 
     if (send_file_to_client(fd, matched_image.buffer, matched_image.file_size) < 0) {
       perror("Error sending file to client");
@@ -345,15 +346,16 @@ int main(int argc , char *argv[])
   *                      How should you track this p_thread so you can terminate it later? [global]
   */
   for (int i = 0; i < num_dispatcher; i++) {
-    if (pthread_create(&dispatcher_thread[i], NULL, dispatch, NULL) != 0) {
+    dispatcher_ids[i] = i;
+    if (pthread_create(&dispatcher_thread[i], NULL, dispatch, &dispatcher_ids[i]) != 0) {
       perror("dispatcher thread failed to create");
       exit(1);
     }
   }
 
   for (int i = 0; i < num_worker; i++) {
-      printf("%d\n", i);
-      if (pthread_create(&worker_thread[i], NULL, worker, NULL) != 0) {
+      worker_ids[i] = i;
+      if (pthread_create(&worker_thread[i], NULL, worker, &worker_ids[i]) != 0) {
         perror("worker thread failed to create");
         exit(1);
       }
