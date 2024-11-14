@@ -1,7 +1,5 @@
 #include "../include/client.h"
 
-
-
 int port = 0;
 
 pthread_t worker_thread[100];
@@ -22,7 +20,7 @@ processing_args_t req_entries[100];
 void * request_handle(void * img_file_path)
 {
     FILE* fptr;
-    if ((fptr = fopen(img_file_path, "rb")) == NULL) {
+    if ((fptr = fopen((char*)img_file_path, "rb")) == NULL) {
         printf("Error! opening file");
         exit(1);
     }
@@ -30,12 +28,14 @@ void * request_handle(void * img_file_path)
     if (fseek(fptr, 0, SEEK_END) != 0) {
         perror("fseek error");
         fclose(fptr);
-        return 1;
+        return (void *) 1;
     }    
 
-    size = ftell(fptr);
+    int size = ftell(fptr);
     if (size == -1) {
         perror("ftell error");
+        fclose(fptr);
+        return (void *) 1;
     }
 
     rewind(fptr);
@@ -54,6 +54,8 @@ void * request_handle(void * img_file_path)
         return NULL;
     }
 
+    close(server_fd);
+    fclose(fptr);
     return NULL;
 }
 
@@ -98,9 +100,8 @@ int main(int argc, char *argv[])
     * 1. Get the input args --> (1) directory path (2) Server Port (3) output path
     */
     char *directory_path = argv[1];
-    int server_port = atoi(argv[2]);
-    char *output_path = argv[3];
-
+    port = atoi(argv[2]);
+    strcpy(output_path, argv[3]);
     /*TODO: Intermediate Submission
     * Call the directory_trav function to traverse the directory and send the images to the server
     */

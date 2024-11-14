@@ -5,7 +5,7 @@ int num_dispatcher = 0; //Global integer to indicate the number of dispatcher th
 int num_worker = 0;  //Global integer to indicate the number of worker threads
 FILE *logfile;  //Global file pointer to the log file
 int queue_len = 0; //Global integer to indicate the length of the queue
-
+int counter = 0;
 /* TODO: Intermediate Submission
   TODO: Add any global variables that you may need to track the requests and threads
   [multiple funct]  --> How will you track the p_thread's that you create for workers?
@@ -31,6 +31,13 @@ pthread_mutex_t log_lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t queue_full = PTHREAD_COND_INITIALIZER;
 pthread_cond_t queue_empty = PTHREAD_COND_INITIALIZER;
 
+int number_images = 0; 
+database_entry_t database[100];
+request_t req_entries[MAX_QUEUE_LEN];
+int queue_head = 0;
+int queue_tail = 0;
+int current_queue_size = 0; 
+
 //TODO: Implement this function
 /**********************************************
  * image_match
@@ -43,36 +50,34 @@ pthread_cond_t queue_empty = PTHREAD_COND_INITIALIZER;
 //just uncomment out when you are ready to implement this function
 database_entry_t image_match(char *input_image, int size)
 {
-  // const char *closest_file     = NULL;
-	// int         closest_distance = 10;
-  // int closest_index = 0;
-  // for(int i = 0; i < 0 /* replace with your database size*/; i++)
-	// {
-	// 	const char *current_file; /* TODO: assign to the buffer from the database struct*/
-	// 	int result = memcmp(input_image, current_file, size);
-	// 	if(result == 0)
-	// 	{
-	// 		return database[i];
-	// 	}
+  const char *closest_file     = NULL;
+	int         closest_distance = 10;
+  int closest_index = 0;
+  for(int i = 0; i < 0 /* replace with your database size*/; i++)
+	{
+		const char *current_file; /* TODO: assign to the buffer from the database struct*/
+		int result = memcmp(input_image, current_file, size);
+		if(result == 0)
+		{
+			return database[i];
+		}
 
-	// 	else if(result < closest_distance)
-	// 	{
-	// 		closest_distance = result;
-	// 		closest_file     = current_file;
-  //     closest_index = i;
-	// 	}
-	// }
+		else if(result < closest_distance)
+		{
+			closest_distance = result;
+			closest_file     = current_file;
+      closest_index = i;
+		}
+	}
 
-	// if(closest_file != NULL)
-	// {
-  //   return database[closest_index];
-	// }
-  // else
-  // {
-  //   printf("No closest file found.\n");
-  // }
-  
-  
+	if(closest_file != NULL)
+	{
+    return database[closest_index];
+	}
+  else
+  {
+    printf("No closest file found.\n");
+  }
 }
 
 //TODO: Implement this function
@@ -220,12 +225,45 @@ void * worker(void *thread_id) {
   /* TODO : Intermediate Submission 
   *    Description:      Get the id as an input argument from arg, set it to ID
   */
-  int ID = *(int *) thread_id;
+  int id = *(int *) thread_id;
     
   while (1) {
+
+    pthread_mutex_lock(&queue_lock);
+
+    while (current_queue_size == 0) {
+      pthread_cond_wait(&queue_empty, &queue_lock);
+    }
+
+    request_t req = req_entries[queue_head];
+    fd = req.file_descriptor;
+    fileSize = req.file_size;
+    char *request_buffer = req.buffer;
+
+    queue_head = (queue_head + 1) % queue_len;
+    current_queue_size--;
+
+    pthread_cond_signal(&queue_full);
+    pthread_mutex_unlock(&queue_lock);
+
+    database_entry_t matched_image = image_match(request_buffer, fileSize);
+
+    if (send_file_to_client(fd, matched_image.buffer, matched_image.file_size) < 0) {
+      perror("Error sending file to client");
+    }
+
+    pthread_mutex_lock(&log_lock);
+    LogPrettyPrint(logfile, id, num_request, matched_image.file_name, matched_image.file_size);
+    pthread_mutex_unlock(&log_lock);
+
+    num_request++;
+
     /* TODO
     *    Description:      Get the request from the queue and do as follows
+
       //(1) Request thread safe access to the request queue by getting the req_queue_mutex lock
+
+      
       //(2) While the request queue is empty conditionally wait for the request queue lock once the not empty signal is raised
 
       //(3) Now that you have the lock AND the queue is not empty, read from the request queue
@@ -300,15 +338,26 @@ int main(int argc , char *argv[])
   */
 
   loadDatabase(path);
- 
-
   /* TODO: Intermediate Submission
   *    Description:      Create dispatcher and worker threads 
   *    Hints:            Use pthread_create, you will want to store pthread's globally
   *                      You will want to initialize some kind of global array to pass in thread ID's
   *                      How should you track this p_thread so you can terminate it later? [global]
   */
+  for (int i = 0; i < num_dispatcher; i++) {
+    if (pthread_create(&dispatcher_thread[i], NULL, dispatch, NULL) != 0) {
+      perror("dispatcher thread failed to create");
+      exit(1);
+    }
+  }
 
+  for (int i = 0; i < num_worker; i++) {
+      printf("%d\n", i);
+      if (pthread_create(&worker_thread[i], NULL, worker, NULL) != 0) {
+        perror("worker thread failed to create");
+        exit(1);
+      }
+  }
 
 
   // Wait for each of the threads to complete their work
@@ -321,12 +370,11 @@ int main(int argc , char *argv[])
     }
   }
   for(i = 0; i < num_worker; i++){
-   // fprintf(stderr, "JOINING WORKER %d \n",i);
+   fprintf(stderr, "JOINING WORKER %d \n",i);
     if((pthread_join(worker_thread[i], NULL)) != 0){
       printf("ERROR : Fail to join worker thread %d.\n", i);
     }
   }
   fprintf(stderr, "SERVER DONE \n");  // will never be reached in SOLUTION
   fclose(logfile);//closing the log files
-
 }
