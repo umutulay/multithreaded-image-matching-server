@@ -92,7 +92,15 @@ database_entry_t image_match(char *input_image, int size)
        - no return value
 ************************************************/
 void LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, char * file_name, int file_size){
-  
+  FILE* output = to_write ? to_write : stdout;
+
+  // Format the log message
+  fprintf(output, "========== Log Entry ==========\n");
+  fprintf(output, "Thread ID       : %d\n", threadId);
+  fprintf(output, "Request Number  : %d\n", requestNumber);
+  fprintf(output, "File Name       : %s\n", file_name);
+  fprintf(output, "File Size (bytes): %d\n", file_size);
+  fprintf(output, "===============================\n");
 }
 
 
@@ -188,11 +196,35 @@ void * dispatch(void *thread_id)
     */
 
     char *file_path = get_request_server(client_fd, &file_size);
+
     if (file_path == NULL) {
-        perror("Error getting request from client");
-        close(client_fd);
-        continue;
+      perror("Error getting request from client");
+      close(client_fd);
+      continue;
     }
+
+
+    char *file_path_copy = strdup(file_path);
+
+    pthread_mutex_lock(&queue_lock);
+
+    while (current_queue_size >= MAX_QUEUE_LEN) {
+      pthread_cond_wait(&queue_empty, &queue_lock);
+    }
+
+    request_t val;
+    val.file_descriptor = client_fd;
+    val.buffer = file_path_copy;
+    val.file_size = file_size;
+
+    req_entries[queue_tail] = val;
+    current_queue_size++;
+    queue_tail = (queue_tail + 1) % MAX_QUEUE_LEN;
+    
+    pthread_cond_signal(&queue_full);
+    pthread_mutex_unlock(&queue_lock);
+
+    close(client_fd);
 
    /* TODO
     *    Description:      Add the request into the queue
@@ -233,6 +265,7 @@ void * worker(void *thread_id) {
     pthread_mutex_lock(&queue_lock);
 
     while (current_queue_size == 0) {
+      printf("dfadsfsdfasdfsd\n");
       pthread_cond_wait(&queue_empty, &queue_lock);
     }
 
