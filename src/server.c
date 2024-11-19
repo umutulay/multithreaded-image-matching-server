@@ -265,7 +265,6 @@ void * worker(void *thread_id) {
     pthread_mutex_lock(&queue_lock);
 
     while (current_queue_size == 0) {
-      printf("dfadsfsdfasdfsd\n");
       pthread_cond_wait(&queue_empty, &queue_lock);
     }
 
