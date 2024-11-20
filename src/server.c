@@ -5,7 +5,6 @@ int num_dispatcher = 0; //Global integer to indicate the number of dispatcher th
 int num_worker = 0;  //Global integer to indicate the number of worker threads
 FILE *logfile;  //Global file pointer to the log file
 int queue_len = 0; //Global integer to indicate the length of the queue
-int counter = 0;
 /* TODO: Intermediate Submission
   TODO: Add any global variables that you may need to track the requests and threads
   [multiple funct]  --> How will you track the p_thread's that you create for workers?
@@ -135,13 +134,13 @@ void loadDatabase(char *path)
   {
     if(strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0 && strcmp(entry->d_name, ".DS_Store") != 0)
     {
-      sprintf(database[counter].file_name, "%s/%s", path, entry->d_name);
+      sprintf(database[number_images].file_name, "%s/%s", path, entry->d_name);
       FILE *fp1;
       unsigned char *buffer1 = NULL;
       long fileLength1;
 
       // Open the image files
-      fp1 = fopen(database[counter].file_name, "rb");
+      fp1 = fopen(database[number_images].file_name, "rb");
       if (fp1 == NULL) {
           perror("Error: Unable to open image files.\n");
           exit(1);
@@ -164,9 +163,9 @@ void loadDatabase(char *path)
 
       // Read file contents into memory buffers
       fread(buffer1, sizeof(unsigned char), fileLength1, fp1);
-      database[counter].buffer = buffer1;
-      database[counter].file_size = fileLength1;
-      counter++;
+      database[number_images].buffer = buffer1;
+      database[number_images].file_size = fileLength1;
+      number_images++;
     }
   }
 
@@ -208,8 +207,8 @@ void * dispatch(void *thread_id)
 
     pthread_mutex_lock(&queue_lock);
 
-    while (current_queue_size >= MAX_QUEUE_LEN) {
-      pthread_cond_wait(&queue_empty, &queue_lock);
+    while (current_queue_size >= queue_len) {
+      pthread_cond_wait(&queue_full, &queue_lock);
     }
 
     request_t val;
@@ -221,10 +220,8 @@ void * dispatch(void *thread_id)
     current_queue_size++;
     queue_tail = (queue_tail + 1) % MAX_QUEUE_LEN;
     
-    pthread_cond_signal(&queue_full);
+    pthread_cond_signal(&queue_empty);
     pthread_mutex_unlock(&queue_lock);
-
-    close(client_fd);
 
    /* TODO
     *    Description:      Add the request into the queue
@@ -254,7 +251,6 @@ void * worker(void *thread_id) {
   int fd          = INVALID;                              //Integer to hold the file descriptor of incoming request
   char *mybuf;                                  //String to hold the contents of the file being requested
 
-
   /* TODO : Intermediate Submission 
   *    Description:      Get the id as an input argument from arg, set it to ID
   */
@@ -276,7 +272,7 @@ void * worker(void *thread_id) {
     queue_head = (queue_head + 1) % queue_len;
     current_queue_size--;
 
-    pthread_cond_signal(&queue_full);
+    pthread_cond_signal(&queue_empty);
     pthread_mutex_unlock(&queue_lock);
 
     database_entry_t matched_image = image_match(mybuf, fileSize);
@@ -289,6 +285,8 @@ void * worker(void *thread_id) {
     LogPrettyPrint(logfile, id, num_request, matched_image.file_name, matched_image.file_size);
     pthread_mutex_unlock(&log_lock);
 
+    close(fd);
+    free(mybuf);
     num_request++;
 
     /* TODO
