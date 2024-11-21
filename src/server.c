@@ -242,6 +242,7 @@ void * dispatch(void *thread_id)
     return NULL;
 }
 
+
 void * worker(void *thread_id) {
 
   // You may use them or not, depends on how you implement the function
@@ -276,10 +277,18 @@ void * worker(void *thread_id) {
     pthread_mutex_unlock(&queue_lock);
 
     database_entry_t matched_image = image_match(mybuf, fileSize);
+    printf("%d\n", fd);
+
+    // int res = write(fd, "wfjflksjdflksdfjlskdfs", 10);
+    // if (res != 0) {
+    //   perror("oooo");
+    // }
 
     if (send_file_to_client(fd, matched_image.buffer, matched_image.file_size) < 0) {
       perror("Error sending file to client");
     }
+
+    // printf("286\n");
 
     pthread_mutex_lock(&log_lock);
     LogPrettyPrint(logfile, id, num_request, matched_image.file_name, matched_image.file_size);

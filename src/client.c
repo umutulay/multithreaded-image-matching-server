@@ -21,15 +21,17 @@ void * request_handle(void * img_file_path)
 {
     FILE* fptr;
     if ((fptr = fopen((char*)img_file_path, "rb")) == NULL) {
-        printf("Error! opening file");
-        exit(1);
+        perror("fopen error");
+        fclose(fptr);
+        return (void *) 1;
+        
     }
 
     if (fseek(fptr, 0, SEEK_END) != 0) {
         perror("fseek error");
         fclose(fptr);
         return (void *) 1;
-    }    
+    }
 
     int size = ftell(fptr);
     if (size == -1) {
@@ -40,23 +42,33 @@ void * request_handle(void * img_file_path)
 
     rewind(fptr);
 
+
     int server_fd = setup_connection(port);
+
     if (server_fd < 0) {
         fprintf(stderr, "Failed to set up server connection\n");
         fclose(fptr);
-        return NULL;
+        return (void *) 1;
     }
 
     if (send_file_to_server(server_fd, fptr, size) < 0) {
         fprintf(stderr, "Failed to send file to server\n");
         close(server_fd);
         fclose(fptr);
-        return NULL;
+        return (void *) 1;
     }
 
-    close(server_fd);
+    char buffer [1000];
+    sprintf(buffer, "output/%s", (char*)img_file_path+4);
+    if (receive_file_from_server(server_fd, buffer) < 0) {
+        fprintf(stderr, "Failed to receive\n");
+        close(server_fd);
+        fclose(fptr);
+        return (void *) 1;
+    }
+
     fclose(fptr);
-    return NULL;
+    return (void *) 1;
 }
 
 /* Directory traversal function is provided to you. */
