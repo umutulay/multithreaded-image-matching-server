@@ -6,7 +6,8 @@ Adit Kadepurkar (kadep001): Equally contributed to the project
 
 Umut Tulay (tulay003): Equally contributed to the project
 
-login05.cselabs.umn.edu
+login03.cselabs.umn.edu
 
-We need to ensure that threads interact with shared resources in a thread-safe manner. To do that, we will use mutex locks
-to protect shared data and condition variables to synchronize threads
+$ ./make
+$ ./server 8000 database 50 50 20
+$ ./client img 8000 output/img
