@@ -49,22 +49,16 @@ int current_queue_size = 0;
 //just uncomment out when you are ready to implement this function
 database_entry_t image_match(char *input_image, int size)
 {
-  // printf("size: %d\n", size);
-  // printf("number_images: %s\n", input_image);
   const char *closest_file     = NULL;
 	int         closest_distance = 10;
   int closest_index = 0;
   for(int i = 0; i < number_images; i++)
 	{
-// printf("%s\n",database[i].file_name);
 
     const char *current_file = database[i].buffer;
-    // printf("current_file: %c\n", current_file);
-		// const char *current_file; /* TODO: assign to the buffer from the database struct*/
 		int result = memcmp(input_image, current_file, size);
 		if(result == 0)
 		{
-      // printf("%s\n", database[i].file_name);
 			return database[i];
 		}
 
@@ -78,7 +72,6 @@ database_entry_t image_match(char *input_image, int size)
 
 	if(closest_file != NULL)
 	{
-    // printf("File chosen: %s\n", database[closest_index].file_name);
     return database[closest_index];
 	}
   else
@@ -98,16 +91,12 @@ database_entry_t image_match(char *input_image, int size)
        - no return value
 ************************************************/
 void LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, char * file_name, int file_size){
-  // FILE* output = to_write ? to_write : stdout;
-  // printf("file_name: %s\n", to_write);
-  // FILE* output = stdout;
   FILE* output = to_write;
 
   if (pthread_mutex_lock(&log_lock) != 0) {
     perror("Failed to acquire log lock");
     return;
   }
-  // to_write = fopen(LOG_FILE_NAME, "w");
   // Format the log message
   fprintf(output, "[%d]", threadId);
   fprintf(output, "[%d]", requestNumber);
@@ -118,14 +107,12 @@ void LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, char * file
         perror("Failed to release log lock");
     }
 
-    fflush(output);
+  fflush(output);
   
   fprintf(stdout, "[%d]", threadId);
   fprintf(stdout, "[%d]", requestNumber);
   fprintf(stdout, "[%s]", file_name);
   fprintf(stdout, "[%d]\n", file_size);
-  // printf("[%d][%d][%s][%d]\n", threadId, requestNumber, file_name, file_size);
-  // fclose(to_write);
 }
 
 
@@ -228,19 +215,16 @@ void * dispatch(void *thread_id)
       continue;
     }
 
-
-    // char *file_path_copy = strdup(file_path);
-    // if (!file_path_copy) {
-    //     perror("Error duplicating file path");
-    //     close(client_fd);
-    //     free(file_path); // Free original path in case of allocation failure
-    //     continue;
-    // }
-
-    pthread_mutex_lock(&queue_lock);
+    if(pthread_mutex_lock(&queue_lock) != 0) {
+      perror("Failed to acquire queue lock");
+      return NULL;
+    }
 
     while (current_queue_size >= queue_len) {
-      pthread_cond_wait(&queue_full, &queue_lock);
+      if(pthread_cond_wait(&queue_full, &queue_lock) != 0) {
+        perror("Failed to wait for queue full");
+        return NULL;
+      }
     }
 
     request_t val;
@@ -251,16 +235,20 @@ void * dispatch(void *thread_id)
     req_entries[queue_tail] = val;
     current_queue_size++;
     queue_tail = (queue_tail + 1) % queue_len;
-    // printf("Dispatcher %d: Request added to queue at index %d, file: %s\n", *(int *)thread_id, queue_tail, file_path_copy);
 
-    pthread_cond_signal(&queue_empty);
-    pthread_mutex_unlock(&queue_lock);
-    // free(file_path);
+    if(pthread_cond_signal(&queue_empty) != 0) {
+      perror("Failed to signal queue empty");
+      return NULL;
+    }
+    
+    if(pthread_mutex_unlock(&queue_lock) != 0) {
+      perror("Failed to release queue lock");
+      return NULL;
+    }
 
    /* TODO
     *    Description:      Add the request into the queue
         //(1) Copy the filename from get_request_server into allocated memory to put on request queue
-        
 
         //(2) Request thread safe access to the request queue
 
@@ -293,46 +281,41 @@ void * worker(void *thread_id) {
     
   while (1) {
 
-    pthread_mutex_lock(&queue_lock);
+    if(pthread_mutex_lock(&queue_lock) != 0) {
+      perror("Failed to acquire queue lock");
+      return NULL;
+    }
 
     while (current_queue_size == 0) {
-      pthread_cond_wait(&queue_empty, &queue_lock);
+      if(pthread_cond_wait(&queue_empty, &queue_lock) != 0) {
+        perror("Failed to wait for queue empty");
+        return NULL;
+      }
     }
 
     request_t req = req_entries[queue_head];
     fd = req.file_descriptor;
     fileSize = req.file_size;
     mybuf = req.buffer;
-    // printf("neuve queeyeyeheads: %d\n", queue_head);
-    // printf("req_entries[queue_head].file_descriptor: %d\n", req_entries[queue_head].file_descriptor);
-    // printf("req_entries[queue_head].file_size: %d\n", req_entries[queue_head].file_size);
-    // printf("req_entries[queue_head].buffer: %s\n", req_entries[queue_head].buffer);
-
 
     queue_head = (queue_head + 1) % queue_len;
     current_queue_size--;
-    pthread_cond_signal(&queue_full);
-    pthread_mutex_unlock(&queue_lock);
+    if(pthread_cond_signal(&queue_full) != 0) {
+      perror("Failed to signal queue full");
+      return NULL;
+    }
+    if(pthread_mutex_unlock(&queue_lock) != 0) {
+      perror("Failed to release queue lock");
+      return NULL;
+    }
 
     database_entry_t matched_image = image_match(mybuf, fileSize);
-
-    // printf("%d req.file_descriptor\n", fd);
-    // printf("%s matched image. filename\n", matched_image.file_name);
-
-    // int res = write(fd, "wfjflksjdflksdfjlskdfs", 10);
-    // if (res != 0) {
-    //   perror("oooo");
-    // }
 
     if (send_file_to_client(fd, matched_image.buffer, matched_image.file_size) < 0) {
       perror("Error sending file to client");
     }
 
-    // printf("286\n");
-
-    // printf("%s\n", logfile)
     LogPrettyPrint(logfile, id, num_request, matched_image.file_name, matched_image.file_size);
-    // printf
     close(fd);
     num_request++;
 
