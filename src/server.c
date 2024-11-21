@@ -49,16 +49,22 @@ int current_queue_size = 0;
 //just uncomment out when you are ready to implement this function
 database_entry_t image_match(char *input_image, int size)
 {
+  // printf("size: %d\n", size);
+  // printf("number_images: %s\n", input_image);
   const char *closest_file     = NULL;
 	int         closest_distance = 10;
   int closest_index = 0;
   for(int i = 0; i < number_images; i++)
 	{
+// printf("%s\n",database[i].file_name);
+
     const char *current_file = database[i].buffer;
+    // printf("current_file: %c\n", current_file);
 		// const char *current_file; /* TODO: assign to the buffer from the database struct*/
 		int result = memcmp(input_image, current_file, size);
 		if(result == 0)
 		{
+      printf("%s\n", database[i].file_name);
 			return database[i];
 		}
 
@@ -72,6 +78,7 @@ database_entry_t image_match(char *input_image, int size)
 
 	if(closest_file != NULL)
 	{
+    printf("File chosen: %s\n", database[closest_index].file_name);
     return database[closest_index];
 	}
   else
@@ -92,14 +99,12 @@ database_entry_t image_match(char *input_image, int size)
 ************************************************/
 void LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, char * file_name, int file_size){
   FILE* output = to_write ? to_write : stdout;
-
+  // FILE* output = stdout;
   // Format the log message
-  fprintf(output, "========== Log Entry ==========\n");
-  fprintf(output, "Thread ID       : %d\n", threadId);
-  fprintf(output, "Request Number  : %d\n", requestNumber);
-  fprintf(output, "File Name       : %s\n", file_name);
-  fprintf(output, "File Size (bytes): %d\n", file_size);
-  fprintf(output, "===============================\n");
+  fprintf(output, "[%d]", threadId);
+  fprintf(output, "[%d]", requestNumber);
+  fprintf(output, "[%s]", file_name);
+  fprintf(output, "[%d]\n", file_size);
 }
 
 
@@ -203,7 +208,13 @@ void * dispatch(void *thread_id)
     }
 
 
-    char *file_path_copy = strdup(file_path);
+    // char *file_path_copy = strdup(file_path);
+    // if (!file_path_copy) {
+    //     perror("Error duplicating file path");
+    //     close(client_fd);
+    //     free(file_path); // Free original path in case of allocation failure
+    //     continue;
+    // }
 
     pthread_mutex_lock(&queue_lock);
 
@@ -213,15 +224,17 @@ void * dispatch(void *thread_id)
 
     request_t val;
     val.file_descriptor = client_fd;
-    val.buffer = file_path_copy;
+    val.buffer = file_path;
     val.file_size = file_size;
 
     req_entries[queue_tail] = val;
     current_queue_size++;
-    queue_tail = (queue_tail + 1) % MAX_QUEUE_LEN;
-    
+    queue_tail = (queue_tail + 1) % queue_len;
+    // printf("Dispatcher %d: Request added to queue at index %d, file: %s\n", *(int *)thread_id, queue_tail, file_path_copy);
+
     pthread_cond_signal(&queue_empty);
     pthread_mutex_unlock(&queue_lock);
+    // free(file_path);
 
    /* TODO
     *    Description:      Add the request into the queue
@@ -248,7 +261,7 @@ void * worker(void *thread_id) {
   // You may use them or not, depends on how you implement the function
   int num_request = 0;                                    //Integer for tracking each request for printing into the log file
   int fileSize    = 0;                                    //Integer to hold the size of the file being requested
-  void *memory    = NULL;                                 //memory pointer where contents being requested are read and stored
+  // void *memory    = NULL;                                 //memory pointer where contents being requested are read and stored
   int fd          = INVALID;                              //Integer to hold the file descriptor of incoming request
   char *mybuf;                                  //String to hold the contents of the file being requested
 
@@ -268,16 +281,22 @@ void * worker(void *thread_id) {
     request_t req = req_entries[queue_head];
     fd = req.file_descriptor;
     fileSize = req.file_size;
-    char *mybuf = req.buffer;
+    mybuf = req.buffer;
+    // printf("neuve queeyeyeheads: %d\n", queue_head);
+    // printf("req_entries[queue_head].file_descriptor: %d\n", req_entries[queue_head].file_descriptor);
+    // printf("req_entries[queue_head].file_size: %d\n", req_entries[queue_head].file_size);
+    // printf("req_entries[queue_head].buffer: %s\n", req_entries[queue_head].buffer);
+
 
     queue_head = (queue_head + 1) % queue_len;
     current_queue_size--;
-
-    pthread_cond_signal(&queue_empty);
+    pthread_cond_signal(&queue_full);
     pthread_mutex_unlock(&queue_lock);
 
     database_entry_t matched_image = image_match(mybuf, fileSize);
-    printf("%d\n", fd);
+
+    // printf("%d req.file_descriptor\n", fd);
+    // printf("%s matched image. filename\n", matched_image.file_name);
 
     // int res = write(fd, "wfjflksjdflksdfjlskdfs", 10);
     // if (res != 0) {
@@ -291,11 +310,12 @@ void * worker(void *thread_id) {
     // printf("286\n");
 
     pthread_mutex_lock(&log_lock);
+    printf("%s are we stuck here\n", matched_image.file_name);
     LogPrettyPrint(logfile, id, num_request, matched_image.file_name, matched_image.file_size);
+    // printf
     pthread_mutex_unlock(&log_lock);
 
     close(fd);
-    free(mybuf);
     num_request++;
 
     /* TODO
@@ -358,7 +378,7 @@ int main(int argc , char *argv[])
   *    Description:      Open log file
   *    Hint:             Use Global "File* logfile", use "server_log" as the name, what open flags do you want?
   */
-  logfile = fopen("server_log", "w");
+  logfile = fopen("server_log", "ab");
   if (logfile == NULL) {
       perror("Failed to open log file");
       return -1;
