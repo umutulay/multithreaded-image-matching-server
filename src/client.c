@@ -24,7 +24,6 @@ void * request_handle(void * img_file_path)
         perror("fopen error");
         fclose(fptr);
         return (void *) 1;
-        
     }
 
     if (fseek(fptr, 0, SEEK_END) != 0) {
@@ -41,7 +40,6 @@ void * request_handle(void * img_file_path)
     }
 
     rewind(fptr);
-
 
     int server_fd = setup_connection(port);
 
@@ -108,12 +106,14 @@ int main(int argc, char *argv[])
         fprintf(stderr, "Usage: ./client <directory path> <Server Port> <output path>\n");
         exit(-1);
     }
+    
     /*TODO:  Intermediate Submission
     * 1. Get the input args --> (1) directory path (2) Server Port (3) output path
     */
     char *directory_path = argv[1];
     port = atoi(argv[2]);
     strcpy(output_path, argv[3]);
+
     /*TODO: Intermediate Submission
     * Call the directory_trav function to traverse the directory and send the images to the server
     */

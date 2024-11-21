@@ -64,7 +64,7 @@ database_entry_t image_match(char *input_image, int size)
 		int result = memcmp(input_image, current_file, size);
 		if(result == 0)
 		{
-      printf("%s\n", database[i].file_name);
+      // printf("%s\n", database[i].file_name);
 			return database[i];
 		}
 
@@ -78,7 +78,7 @@ database_entry_t image_match(char *input_image, int size)
 
 	if(closest_file != NULL)
 	{
-    printf("File chosen: %s\n", database[closest_index].file_name);
+    // printf("File chosen: %s\n", database[closest_index].file_name);
     return database[closest_index];
 	}
   else
@@ -98,13 +98,34 @@ database_entry_t image_match(char *input_image, int size)
        - no return value
 ************************************************/
 void LogPrettyPrint(FILE* to_write, int threadId, int requestNumber, char * file_name, int file_size){
-  FILE* output = to_write ? to_write : stdout;
+  // FILE* output = to_write ? to_write : stdout;
+  // printf("file_name: %s\n", to_write);
   // FILE* output = stdout;
+  FILE* output = to_write;
+
+  if (pthread_mutex_lock(&log_lock) != 0) {
+    perror("Failed to acquire log lock");
+    return;
+  }
+  // to_write = fopen(LOG_FILE_NAME, "w");
   // Format the log message
   fprintf(output, "[%d]", threadId);
   fprintf(output, "[%d]", requestNumber);
   fprintf(output, "[%s]", file_name);
   fprintf(output, "[%d]\n", file_size);
+  
+  if (pthread_mutex_unlock(&log_lock) != 0) {
+        perror("Failed to release log lock");
+    }
+
+    fflush(output);
+  
+  fprintf(stdout, "[%d]", threadId);
+  fprintf(stdout, "[%d]", requestNumber);
+  fprintf(stdout, "[%s]", file_name);
+  fprintf(stdout, "[%d]\n", file_size);
+  // printf("[%d][%d][%s][%d]\n", threadId, requestNumber, file_name, file_size);
+  // fclose(to_write);
 }
 
 
@@ -309,12 +330,9 @@ void * worker(void *thread_id) {
 
     // printf("286\n");
 
-    pthread_mutex_lock(&log_lock);
-    printf("%s are we stuck here\n", matched_image.file_name);
+    // printf("%s\n", logfile)
     LogPrettyPrint(logfile, id, num_request, matched_image.file_name, matched_image.file_size);
     // printf
-    pthread_mutex_unlock(&log_lock);
-
     close(fd);
     num_request++;
 
@@ -378,7 +396,7 @@ int main(int argc , char *argv[])
   *    Description:      Open log file
   *    Hint:             Use Global "File* logfile", use "server_log" as the name, what open flags do you want?
   */
-  logfile = fopen("server_log", "ab");
+  logfile = fopen(LOG_FILE_NAME, "w");
   if (logfile == NULL) {
       perror("Failed to open log file");
       return -1;
