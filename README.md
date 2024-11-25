@@ -10,7 +10,9 @@ Clone the repo
 ## Usage
 
 `$ make`
+
 `$ ./server 8000 database 50 50 20`
+
 `$ ./client img 8000 output/img`
 
 ## Authors
