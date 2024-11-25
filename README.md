@@ -5,6 +5,7 @@ The purpose of this project is to construct a multithreaded client and a multith
 #### Installation
 
 Clone the repo
+
 `git clone https://github.com/umutulay/multithreaded-image-matching-server.git`
 
 ## Usage
